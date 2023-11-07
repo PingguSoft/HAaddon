@@ -9,6 +9,7 @@ config_dir = '/data'
 data_dir = '/pycommax'
 
 HA_TOPIC = 'homenet'
+CONFIG_TOPIC = HA_TOPIC + '/{}/{}/config'
 STATE_TOPIC = HA_TOPIC + '/{}/{}/state'
 ELFIN_TOPIC = 'ew11'
 ELFIN_SEND_TOPIC = ELFIN_TOPIC + '/send'
@@ -113,7 +114,7 @@ def do_work(config, device_list):
         if input_hex:
             try:
                 change = int(change)
-                input_hex = '{}{}{}'.format(input_hex[:change - 1], int(input_hex[change - 1]) + k, input_hex[change:])
+                input_hex = '{}{}{}'.format(input_hex[:change - 1], hex(int(input_hex[change - 1], 16) + k).upper()[2:], input_hex[change:])
             except:
                 pass
         return checksum(input_hex)
@@ -194,7 +195,7 @@ def do_work(config, device_list):
 
         if device in DEVICE_LISTS:
             key = topics[1] + topics[2]
-            idx = int(topics[1][-1])
+            idx = int(topics[1][-1], 16)
             cur_state = HOMESTATE.get(key)
             value = 'ON' if value == 'heat' else value.upper()
             if cur_state:
@@ -357,6 +358,25 @@ def do_work(config, device_list):
                 log('[DEBUG] {} is already set: {}'.format(deviceID, onoff))
         return
 
+    async def update_config():
+        for dev in DEVICE_LISTS:
+            deviceClass = dev.lower()
+            for i in range(DEVICE_LISTS[dev]):
+                deviceID = dev + hex(i + 1)[2:]
+                json = f"
+                    \{
+                        'name':{deviceID},
+                        'device_class':{deviceClass},
+                        'state_topic':'homenet/{deviceID}/power/state',
+                        'command_topic':'homenet/{deviceID}/power/command',
+                    \}
+                "
+                topic = CONFIG_TOPIC.format(deviceClass, deviceID)
+                mqtt_client.publish(topic, json.encode())
+                if mqtt_log:
+                    log('[LOG] ->> HA : {} >> {}'.format(topic, json))
+        return
+
     async def update_fan(idx, onoff):
         deviceID = 'Fan' + str(idx + 1)
         if onoff == 'ON' or onoff == 'OFF':
@@ -428,6 +448,8 @@ def do_work(config, device_list):
             client.subscribe([(HA_TOPIC + '/#', 0), (ELFIN_TOPIC + '/recv', 0), (ELFIN_TOPIC + '/send', 1)])
             if 'EV' in DEVICE_LISTS:
                 asyncio.run(update_state('EV', 0, 'OFF'))
+
+            asyncio.run(update_config())
         else:
             errcode = {1: 'Connection refused - incorrect protocol version',
                        2: 'Connection refused - invalid client identifier',
