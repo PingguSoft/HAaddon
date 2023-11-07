@@ -65,7 +65,7 @@ def find_device(config):
                 name = statePrefix[data[:2]]
                 collect_data[name].add(data)
                 if dev_info[name].get('stateNUM'):
-                    device_num[name] = max([device_num[name], int(data[int(dev_info[name]['stateNUM']) - 1])])
+                    device_num[name] = max([device_num[name], int(data[int(dev_info[name]['stateNUM']) - 1], 16)])
                 else:
                     device_num[name] = 1
 
